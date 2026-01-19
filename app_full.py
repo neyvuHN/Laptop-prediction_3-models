@@ -2,29 +2,9 @@ import streamlit as st
 import pandas as pd
 import pickle
 import numpy as np
+from sklearn.ensemble import GradientBoostingRegressor
 
-# Danh sách feature chuẩn từ yêu cầu của bạn
-TRAIN_COLS = [
-    'cpu_cores', 'cpu_threads', 'ram_size', 'storage_size', 'screen_size', 
-    'raw_specs_count', 'ram_type_DDR3', 'ram_type_DDR3L', 'ram_type_DDR4', 
-    'ram_type_DDR4X', 'ram_type_DDR5', 'ram_type_DDR5X', 'ram_type_DDR6', 
-    'ram_type_RAM_TYPE', 'brand_score', 'cpu_gen', 'cpu_performance_score', 
-    'cpu_brand_Intel', 'cpu_brand_AMD', 'gpu_vram', 'gpu_brand_te', 
-    'gpu_class_te', 'screen_brightness_nits', 'screen_srgb_percent', 
-    'screen_ntsc_percent', 'screen_anti_glare', 'battery_wh', 'battery_cells', 
-    'res_width', 'res_height', 'res_total_pixels', 'gpu_brand_AMD', 
-    'gpu_brand_Intel', 'gpu_brand_NVIDIA', 'gpu_brand_Other', 
-    'gpu_brand_Unknown', 'gpu_class_Discrete', 'gpu_class_Integrated', 
-    'gpu_class_Unknown'
-]
-
-# Sai số MAE từ kết quả huấn luyện của nhóm (để tạo khoảng giá)
-MODEL_METRICS = {
-    'LightGBM': {'mae': 4110382, 'is_log': True},
-    'XGBoost': {'mae': 3965587, 'is_log': False},
-    'Random Forest': {'mae': 3795342, 'is_log': False}
-}
-
+# 1. ĐỊNH NGHĨA CLASS (Bắt buộc phải nằm trước khi load pickle)
 class OptimizedModel:
     def __init__(self, n_est=1000, lr=0.03, depth=6):
         self.model = GradientBoostingRegressor(
@@ -45,24 +25,54 @@ class OptimizedModel:
     def predict(self, X):
         return self.model.predict(X)
 
+# 2. DANH SÁCH FEATURE CHUẨN (39 columns)
+TRAIN_COLS = [
+    'cpu_cores', 'cpu_threads', 'ram_size', 'storage_size', 'screen_size', 
+    'raw_specs_count', 'ram_type_DDR3', 'ram_type_DDR3L', 'ram_type_DDR4', 
+    'ram_type_DDR4X', 'ram_type_DDR5', 'ram_type_DDR5X', 'ram_type_DDR6', 
+    'ram_type_RAM_TYPE', 'brand_score', 'cpu_gen', 'cpu_performance_score', 
+    'cpu_brand_Intel', 'cpu_brand_AMD', 'gpu_vram', 'gpu_brand_te', 
+    'gpu_class_te', 'screen_brightness_nits', 'screen_srgb_percent', 
+    'screen_ntsc_percent', 'screen_anti_glare', 'battery_wh', 'battery_cells', 
+    'res_width', 'res_height', 'res_total_pixels', 'gpu_brand_AMD', 
+    'gpu_brand_Intel', 'gpu_brand_NVIDIA', 'gpu_brand_Other', 
+    'gpu_brand_Unknown', 'gpu_class_Discrete', 'gpu_class_Integrated', 
+    'gpu_class_Unknown'
+]
+
+# 3. CẤU HÌNH SAI SỐ MAE (Dựa trên kết quả train của bạn)
+# Lưu ý: Key ở đây phải khớp với Key bạn đặt trong file laptop_models.pkl
+MODEL_METRICS = {
+    'LightGBM': {'mae': 4110382, 'is_log': True},
+    'XGBoost': {'mae': 3965587, 'is_log': False},
+    'Random Forest': {'mae': 3795342, 'is_log': False}
+}
 
 @st.cache_resource
 def load_models():
-    # Giả sử bạn dùng file gộp như hướng dẫn trước
-    with open('laptop_models.pkl', 'rb') as f:
-        return pickle.load(f)
+    try:
+        with open('laptop_models.pkl', 'rb') as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        return None
 
-# --- GIAO DIỆN APP ---
+# --- THIẾT LẬP GIAO DIỆN ---
 st.set_page_config(page_title="Laptop Price Predictor", layout="wide")
-st.title("💻 Hệ thống Dự báo Giá Laptop")
-st.write("Nhập thông số chi tiết để nhận định khoảng giá thị trường.")
 
-try:
-    all_data = load_models()
-    models = all_data['models']
-except FileNotFoundError:
-    st.error("Không tìm thấy file model. Vui lòng kiểm tra lại file .pkl")
+# Sidebar để chọn mô hình
+st.sidebar.header("🤖 Cấu hình dự đoán")
+all_data = load_models()
+
+if all_data is None:
+    st.error("❌ Không tìm thấy file 'laptop_models.pkl'. Vui lòng kiểm tra lại!")
     st.stop()
+
+models_in_pkl = all_data['models']
+model_options = ["So sánh cả 3"] + list(MODEL_METRICS.keys())
+selected_model = st.sidebar.selectbox("Chọn mô hình dự đoán:", model_options)
+
+st.title("💻 Hệ thống Dự báo Giá Laptop")
+st.write(f"Đang sử dụng: **{selected_model}**")
 
 # --- FORM NHẬP LIỆU ---
 with st.form("prediction_form"):
@@ -100,15 +110,14 @@ with st.form("prediction_form"):
         battery_wh = c1.number_input("Dung lượng Pin (Wh)", 30, 100, 50)
         battery_cells = c2.number_input("Số Cell Pin", 2, 6, 3)
 
-    # Nút dự đoán
     submit = st.form_submit_button("📊 PHÂN TÍCH GIÁ")
 
-# --- XỬ LÝ DỮ LIỆU & DỰ ĐOÁN ---
+# --- XỬ LÝ DỰ ĐOÁN ---
 if submit:
-    # 1. Khởi tạo mảng input với toàn số 0
+    # 1. Tạo DataFrame input
     input_df = pd.DataFrame(0.0, index=[0], columns=TRAIN_COLS)
     
-    # 2. Điền các giá trị số trực tiếp
+    # 2. Map dữ liệu số
     input_df['cpu_cores'] = cpu_cores
     input_df['cpu_threads'] = cpu_threads
     input_df['ram_size'] = ram_size
@@ -125,42 +134,46 @@ if submit:
     input_df['gpu_vram'] = gpu_vram
     input_df['brand_score'] = brand_score
     input_df['screen_anti_glare'] = 1 if anti_glare else 0
-    input_df['raw_specs_count'] = 25 # Giá trị trung bình mẫu
+    input_df['raw_specs_count'] = 25 
+    input_df['gpu_brand_te'] = 17000000.0 # Placeholder
+    input_df['gpu_class_te'] = 17000000.0 # Placeholder
 
-    # 3. Điền giá trị One-hot Encoding (Chưa encode -> Encode)
+    # 3. Map One-hot Encoding
     if f"ram_type_{ram_type}" in TRAIN_COLS: input_df[f"ram_type_{ram_type}"] = 1
     if f"cpu_brand_{cpu_brand}" in TRAIN_COLS: input_df[f"cpu_brand_{cpu_brand}"] = 1
     if f"gpu_brand_{gpu_brand}" in TRAIN_COLS: input_df[f"gpu_brand_{gpu_brand}"] = 1
     if f"gpu_class_{gpu_class}" in TRAIN_COLS: input_df[f"gpu_class_{gpu_class}"] = 1
 
-    # Điền giá trị Target Encoding trung bình (vì người dùng không biết số này)
-    input_df['gpu_brand_te'] = 17000000.0 
-    input_df['gpu_class_te'] = 17000000.0
-
-    # 4. Dự đoán và hiển thị
+    # 4. Thực hiện dự đoán
     st.divider()
-    cols = st.columns(3)
     
-    model_list = list(MODEL_METRICS.keys())
-    
-    for i, m_name in enumerate(model_list):
-        if m_name in models:
-            # Lấy dự đoán thô
-            raw_pred = models[m_name].predict(input_df)[0]
+    # Xác định danh sách mô hình cần chạy
+    if selected_model == "So sánh cả 3":
+        models_to_run = list(MODEL_METRICS.keys())
+    else:
+        models_to_run = [selected_model]
+
+    cols = st.columns(len(models_to_run))
+
+    for i, m_name in enumerate(models_to_run):
+        # Lấy mô hình từ file pkl (Lưu ý: key trong pkl có thể là 'lgbm', 'xgb'... hãy kiểm tra lại)
+        # Ở đây mình giả định key trong pkl khớp với MODEL_METRICS.keys()
+        model_obj = models_in_pkl.get(m_name)
+        
+        if model_obj:
+            raw_pred = model_obj.predict(input_df)[0]
             
-            # Xử lý nếu model đó dùng Log (như LightGBM của bạn)
-            if MODEL_METRICS[m_name]['is_log']:
-                final_pred = np.expm1(raw_pred)
-            else:
-                final_pred = raw_pred
+            # Xử lý Log transform
+            final_pred = np.expm1(raw_pred) if MODEL_METRICS[m_name]['is_log'] else raw_pred
             
-            # Tính khoảng giá: Prediction +/- MAE
+            # Tính khoảng giá
             mae = MODEL_METRICS[m_name]['mae']
-            lower_bound = max(0, final_pred - mae)
-            upper_bound = final_pred + mae
+            lower = max(0, final_pred - mae)
+            upper = final_pred + mae
             
             with cols[i]:
                 st.subheader(f"🤖 {m_name}")
-                st.metric("Giá dự báo trung bình", f"{final_pred:,.0f} đ")
-
-                st.info(f"**Khoảng giá ước tính:**\n\n{lower_bound:,.0f} - {upper_bound:,.0f} VNĐ")
+                st.metric("Giá dự báo", f"{final_pred:,.0f} đ")
+                st.info(f"**Khoảng giá ước tính:**\n\n{lower:,.0f} - {upper:,.0f} VNĐ")
+        else:
+            st.warning(f"Mô hình '{m_name}' không tìm thấy trong file pkl.")
