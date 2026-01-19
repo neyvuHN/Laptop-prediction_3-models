@@ -6,3 +6,6 @@ xgboost
 pathlib
 optuna
 typing
+matplotlib
+lightgbm
+joblib
