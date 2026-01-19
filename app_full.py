@@ -43,9 +43,9 @@ TRAIN_COLS = [
 # 3. CẤU HÌNH SAI SỐ MAE (Dựa trên kết quả train của bạn)
 # Lưu ý: Key ở đây phải khớp với Key bạn đặt trong file laptop_models.pkl
 MODEL_METRICS = {
-    'LightGBM': {'mae': 4110382, 'is_log': True},
-    'XGBoost': {'mae': 3965587, 'is_log': False},
-    'Random Forest': {'mae': 3795342, 'is_log': False}
+    'lgbm': {'name': 'LightGBM', 'mae': 4110382, 'is_log': True},
+    'xgb': {'name': 'XGBoost', 'mae': 3965587, 'is_log': False},
+    'rf': {'name': 'Random Forest', 'mae': 3795342, 'is_log': False}
 }
 
 import os
@@ -184,4 +184,5 @@ if submit:
                 st.info(f"**Khoảng giá ước tính:**\n\n{lower:,.0f} - {upper:,.0f} VNĐ")
         else:
             st.warning(f"Mô hình '{m_name}' không tìm thấy trong file pkl.")
+
 
