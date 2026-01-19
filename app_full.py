@@ -25,6 +25,27 @@ MODEL_METRICS = {
     'Random Forest': {'mae': 3795342, 'is_log': False}
 }
 
+class OptimizedModel:
+    def __init__(self, n_est=1000, lr=0.03, depth=6):
+        self.model = GradientBoostingRegressor(
+            n_estimators=n_est,
+            learning_rate=lr,
+            max_depth=depth,
+            subsample=0.8,
+            min_samples_leaf=5,
+            max_features='sqrt',
+            random_state=42,
+            validation_fraction=0.1,
+            n_iter_no_change=20
+        )
+
+    def fit(self, X, y_log):
+        self.model.fit(X, y_log)
+
+    def predict(self, X):
+        return self.model.predict(X)
+
+
 @st.cache_resource
 def load_models():
     # Giả sử bạn dùng file gộp như hướng dẫn trước
@@ -141,4 +162,5 @@ if submit:
             with cols[i]:
                 st.subheader(f"🤖 {m_name}")
                 st.metric("Giá dự báo trung bình", f"{final_pred:,.0f} đ")
+
                 st.info(f"**Khoảng giá ước tính:**\n\n{lower_bound:,.0f} - {upper_bound:,.0f} VNĐ")
