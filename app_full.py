@@ -48,12 +48,19 @@ MODEL_METRICS = {
     'Random Forest': {'mae': 3795342, 'is_log': False}
 }
 
+import os
+# Đoạn code debug
+st.write("Các file hiện có trên server:", os.listdir("."))
+
 @st.cache_resource
 def load_models():
-    try:
-        with open('laptop_models.pkl', 'rb') as f:
+    # Sử dụng tên file chính xác như trong danh sách os.listdir(".") phía trên
+    filename = 'laptop_models.pkl' 
+    if os.path.exists(filename):
+        with open(filename, 'rb') as f:
             return pickle.load(f)
-    except FileNotFoundError:
+    else:
+        st.error(f"Không tìm thấy file {filename} trong thư mục!")
         return None
 
 # --- THIẾT LẬP GIAO DIỆN ---
@@ -177,3 +184,4 @@ if submit:
                 st.info(f"**Khoảng giá ước tính:**\n\n{lower:,.0f} - {upper:,.0f} VNĐ")
         else:
             st.warning(f"Mô hình '{m_name}' không tìm thấy trong file pkl.")
+
